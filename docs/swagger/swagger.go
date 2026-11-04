@@ -98,11 +98,25 @@ func SwaggerStructs(structDescr *Struct, depth int) string {
 					fieldDescr.Tag.Required = false
 				}
 
+				if x.X.(*ast.Ident).Name == "null" && x.Sel.Name == "Int" {
+					source = source + fmt.Sprintf("%s    type: integer\n", pre)
+					fieldDescr.Tag.Required = false
+				}
+
 				if x.X.(*ast.Ident).Name == "time" && x.Sel.Name == "Time" {
 					source = source + fmt.Sprintf("%s    type: string\n", pre)
 					source = source + fmt.Sprintf("%s    format: date-time\n", pre)
 					fieldDescr.Tag.Required = true
 					examples[fieldDescr.Tag.Name] = "'2019-07-30T23:59:59Z'"
+				}
+			case *ast.StarExpr:
+				// optional values like *int
+				if ident, ok := x.X.(*ast.Ident); ok && (ident.Name == "int" || ident.Name == "int64") {
+					source = source + fmt.Sprintf("%s    type: integer\n", pre)
+					fieldDescr.Tag.Required = false
+					if fieldDescr.Tag.Example != "" {
+						examples[fieldDescr.Tag.Name] = fieldDescr.Tag.Example
+					}
 				}
 			default:
 				// spew.Dump(fieldDescr)

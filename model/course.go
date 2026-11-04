@@ -35,4 +35,6 @@ type Course struct {
 	BeginsAt           time.Time `db:"begins_at"`
 	EndsAt             time.Time `db:"ends_at"`
 	RequiredPercentage int       `db:"required_percentage"`
+	// MaxTeamSize is the largest allowed team; 1 means individual work.
+	MaxTeamSize int `db:"max_team_size"`
 }

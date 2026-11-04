@@ -21,6 +21,8 @@ background worker that executes submission tests.
 
 - Course management: exercise sheets, tasks, materials, exams, and
   exercise groups with student bidding.
+- Fixed teams with a per-course maximum size: team members share one
+  submission, test run and grade per task.
 - Automatic testing of student submissions via per-task unit tests
   executed in Docker containers, with public results visible to
   students and private results reserved for graders.

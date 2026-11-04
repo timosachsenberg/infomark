@@ -47,7 +47,7 @@ INNER JOIN task_sheet ts ON ts.task_id = t.id
 INNER JOIN sheet_course sc ON sc.sheet_id = ts.sheet_id
 WHERE
   t.id NOT IN (
-    SELECT task_id FROM submissions s WHERE s.user_id = $1
+    SELECT task_id FROM effective_submissions es WHERE es.user_id = $1
   );
     `, userID)
 	return p, err

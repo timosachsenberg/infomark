@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  Alert,
   Card,
   List,
   Button,
@@ -38,7 +39,7 @@ import {
 import { useParams, Link } from 'react-router-dom';
 import type { UploadProps } from 'antd';
 import agent from '@/api/agent';
-import type { Sheet, Task, Grade, TaskPoints } from '@/types';
+import type { Course, Sheet, Task, Grade, TaskPoints, Team } from '@/types';
 import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
 
@@ -72,6 +73,9 @@ const SheetDetail: React.FC = () => {
   });
   const [form] = Form.useForm();
   const [isTutor, setIsTutor] = useState(false);
+  const [course, setCourse] = useState<Course | null>(null);
+  // The student's team; its members share one submission per task.
+  const [team, setTeam] = useState<Team | null>(null);
 
   const cId = Number(courseId);
   const sId = Number(sheetId);
@@ -91,9 +95,33 @@ const SheetDetail: React.FC = () => {
       }
       setIsTutor(tutorish);
 
-      const [sheetData, tasksData] = await Promise.all([agent.Sheets.get(cId, sId), agent.Tasks.getAll(cId, sId)]);
+      // The course (for its team size) is optional context for this page.
+      const loadCourse = async () => {
+        try {
+          return await agent.Courses.get(cId);
+        } catch {
+          return null;
+        }
+      };
+      const [sheetData, tasksData, courseData] = await Promise.all([
+        agent.Sheets.get(cId, sId),
+        agent.Tasks.getAll(cId, sId),
+        loadCourse(),
+      ]);
       setSheet(sheetData);
       setTasks(tasksData);
+      setCourse(courseData);
+
+      // Students in a team hand in for the whole team; 404 means no team.
+      let ownTeam: Team | null = null;
+      if (!tutorish && courseData && courseData.max_team_size > 1) {
+        try {
+          ownTeam = await agent.Teams.getOwn(cId);
+        } catch {
+          ownTeam = null;
+        }
+      }
+      setTeam(ownTeam);
 
       // Per-sheet task points for the student (one round-trip, not N).
       const pointsMap = new Map<number, TaskPoints>();
@@ -245,6 +273,20 @@ const SheetDetail: React.FC = () => {
       </Card>
 
       <Card title={t('sheet.tasks')} style={{ marginTop: 16 }}>
+        {!isTutor && course && course.max_team_size > 1 && (
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message={
+              team
+                ? t('team.submitAsTeam', {
+                    names: team.members.map((m) => `${m.first_name} ${m.last_name}`).join(', '),
+                  })
+                : t('team.submitAlone', { count: course.max_team_size })
+            }
+          />
+        )}
         {tasks.length === 0 ? (
           <Empty description={t('sheet.tasks')} />
         ) : (

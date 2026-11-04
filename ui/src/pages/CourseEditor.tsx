@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Form, Input, Button, Card, DatePicker, InputNumber, message } from 'antd';
 import { useNavigate, useParams } from 'react-router-dom';
 import agent from '@/api/agent';
+import type { ApiError } from '@/types';
 import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
 
@@ -52,7 +53,11 @@ const CourseEditor: React.FC = () => {
       }
       navigate('/courses');
     } catch (error) {
-      message.error(courseId ? t('course.updateFailed') : t('course.createFailed'));
+      // Validation errors (e.g. shrinking the team size below an existing
+      // team) carry the backend's reason.
+      const apiError = error as ApiError;
+      const fallback = courseId ? t('course.updateFailed') : t('course.createFailed');
+      message.error(apiError?.status === 400 && apiError.message ? `${fallback}: ${apiError.message}` : fallback);
     } finally {
       setLoading(false);
     }
@@ -81,6 +86,16 @@ const CourseEditor: React.FC = () => {
 
         <Form.Item name="required_percentage" label={t('course.requiredPercentage')} rules={[{ required: true }]} initialValue={50}>
           <InputNumber min={0} max={100} style={{ width: '100%' }} />
+        </Form.Item>
+
+        <Form.Item
+          name="max_team_size"
+          label={t('course.maxTeamSize')}
+          extra={t('course.maxTeamSizeHelp')}
+          rules={[{ required: true }]}
+          initialValue={1}
+        >
+          <InputNumber min={1} max={100} precision={0} style={{ width: '100%' }} />
         </Form.Item>
 
         <Form.Item>

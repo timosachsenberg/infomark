@@ -21,6 +21,8 @@ package model
 
 import (
 	"time"
+
+	null "github.com/guregu/null/v6"
 )
 
 // Submission is an database entity linking an upload by a student to an exercise
@@ -30,6 +32,9 @@ type Submission struct {
 	CreatedAt time.Time `db:"created_at,omitempty"`
 	UpdatedAt time.Time `db:"updated_at,omitempty"`
 
+	// UserID is the uploader.
 	UserID int64 `db:"user_id"`
 	TaskID int64 `db:"task_id"`
+	// TeamID is set when the submission belongs to a team.
+	TeamID null.Int `db:"team_id"`
 }

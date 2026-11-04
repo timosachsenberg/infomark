@@ -251,13 +251,13 @@ SELECT
   ts.sheet_id sheet_id
 FROM
   grades g
-INNER JOIN submissions sub ON g.submission_id = sub.id
-INNER JOIN tasks t ON sub.task_id = t.id
+INNER JOIN effective_submissions es ON g.submission_id = es.submission_id
+INNER JOIN tasks t ON es.task_id = t.id
 INNER JOIN task_sheet ts ON ts.task_id = t.id
 INNER JOIN sheet_course sc ON sc.sheet_id = ts.sheet_id
 INNER JOIN courses c ON c.id = sc.course_id
 WHERE
-  sub.user_id = $1
+  es.user_id = $1
 AND
   c.id = $2
 GROUP BY

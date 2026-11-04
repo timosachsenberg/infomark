@@ -115,6 +115,12 @@ const SubmissionGrading: React.FC = () => {
         {grade.user?.email && (
           <Descriptions.Item label={t('profile.email')}>{grade.user.email}</Descriptions.Item>
         )}
+        {grade.team_members && grade.team_members.length > 0 && (
+          <Descriptions.Item label={t('team.team')}>
+            {/* Points and feedback apply to every member of the team. */}
+            {grade.team_members.map((m) => `${m.first_name} ${m.last_name}`).join(', ')}
+          </Descriptions.Item>
+        )}
         <Descriptions.Item label={t('submission.publicTests')}>
           <Tag color={grade.public_test_status === 1 ? 'green' : 'red'}>
             {grade.public_test_status === 1 ? t('grades.passed') : t('grades.failed')}

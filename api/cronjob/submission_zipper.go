@@ -28,8 +28,11 @@ import (
 	"github.com/infomark-org/infomark/api/app"
 	"github.com/infomark-org/infomark/api/helper"
 	"github.com/infomark-org/infomark/configuration"
+	"github.com/infomark-org/infomark/database"
 	"github.com/infomark-org/infomark/email"
 	"github.com/jmoiron/sqlx"
+
+	null "github.com/guregu/null/v6"
 )
 
 // SubmissionFileZipper links all ressource to zip submissions
@@ -48,20 +51,46 @@ type SubmissionFileZipper struct {
 // StudentSubmission is a view from the database used to identify which
 // submissions should be included in the final zip file
 type StudentSubmission struct {
-	ID               int64  `db:"id"`
-	StudentFirstName string `db:"first_name"`
-	StudentLastName  string `db:"last_name"`
+	ID               int64    `db:"id"`
+	StudentFirstName string   `db:"first_name"`
+	StudentLastName  string   `db:"last_name"`
+	TeamID           null.Int `db:"team_id"`
+	// TeamLastNames lists the last names of all team members, joined by "-".
+	TeamLastNames string `db:"team_last_names"`
 }
 
-// FetchStudentSubmissions queries the database to gather all submissions for a given group and task
+// ArchiveName is the file name of the submission inside the collection zip.
+func (s *StudentSubmission) ArchiveName() string {
+	if s.TeamID.Valid {
+		return fmt.Sprintf("team%d-%s.zip", s.TeamID.Int64, s.TeamLastNames)
+	}
+	return fmt.Sprintf("%s-%s.zip", s.StudentLastName, s.StudentFirstName)
+}
+
+// FetchStudentSubmissions queries the database to gather all submissions for
+// a given group and task. A team submission is part of the collection of
+// every group with a team member.
 func FetchStudentSubmissions(db *sqlx.DB, groupID int64, taskID int64) ([]StudentSubmission, error) {
 	p := []StudentSubmission{}
 	err := db.Select(&p, `
-SELECT s.id, u.first_name, u.last_name FROM submissions s
-  INNER JOIN user_group ug ON ug.user_id = s.user_id
+SELECT DISTINCT
+  s.id,
+  u.first_name,
+  u.last_name,
+  s.team_id,
+  COALESCE((
+    SELECT string_agg(tu.last_name, '-' ORDER BY tu.last_name, tu.first_name)
+    FROM user_team tm
+    INNER JOIN users tu ON tu.id = tm.user_id
+    WHERE tm.team_id = s.team_id
+  ), '') AS team_last_names
+FROM submissions s
+  INNER JOIN submission_participants sp ON sp.submission_id = s.id
+  INNER JOIN user_group ug ON ug.user_id = sp.user_id
   INNER JOIN users u ON u.id  = s.user_id
   WHERE  ug.group_id = $1
-  AND s.task_id = $2`, groupID, taskID)
+  AND s.task_id = $2
+  AND `+database.CountedSubmission("s"), groupID, taskID)
 	return p, err
 }
 
@@ -169,7 +198,7 @@ func (job *SubmissionFileZipper) Run() {
 
 									// Using FileInfoHeader() above only uses the basename of the file. If we want
 									// to preserve the folder structure we can overwrite this with the full path.
-									header.Name = fmt.Sprintf("%s-%s.zip", submission.StudentLastName, submission.StudentFirstName)
+									header.Name = submission.ArchiveName()
 
 									// Change to deflate to gain better compression
 									// see http://golang.org/pkg/archive/zip/#pkg-constants

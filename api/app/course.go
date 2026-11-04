@@ -99,6 +99,10 @@ func (rs *CourseResource) CreateHandler(w http.ResponseWriter, r *http.Request) 
 	course.BeginsAt = data.BeginsAt
 	course.EndsAt = data.EndsAt
 	course.RequiredPercentage = data.RequiredPercentage
+	course.MaxTeamSize = 1
+	if data.MaxTeamSize != nil {
+		course.MaxTeamSize = *data.MaxTeamSize
+	}
 
 	// create course entry in database
 	newCourse, err := rs.Stores.Course.Create(course)
@@ -171,6 +175,20 @@ func (rs *CourseResource) EditHandler(w http.ResponseWriter, r *http.Request) {
 	course.BeginsAt = data.BeginsAt
 	course.EndsAt = data.EndsAt
 	course.RequiredPercentage = data.RequiredPercentage
+
+	if data.MaxTeamSize != nil {
+		largestTeam, err := rs.Stores.Team.LargestTeamSize(course.ID)
+		if err != nil {
+			render.Render(w, r, ErrInternalServerErrorWithDetails(err))
+			return
+		}
+		if *data.MaxTeamSize < largestTeam {
+			render.Render(w, r, ErrBadRequestWithDetails(fmt.Errorf(
+				"max_team_size cannot be smaller than the largest team (%d members)", largestTeam)))
+			return
+		}
+		course.MaxTeamSize = *data.MaxTeamSize
+	}
 
 	// update database entry
 	if err := rs.Stores.Course.Update(course); err != nil {

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Card, Table, Button, Tag, Breadcrumb, Empty, Skeleton, message, Space, Input } from 'antd';
-import { HomeOutlined, EditOutlined, CheckCircleOutlined, CloseCircleOutlined, SearchOutlined } from '@ant-design/icons';
+import { HomeOutlined, EditOutlined, CheckCircleOutlined, CloseCircleOutlined, SearchOutlined, TeamOutlined } from '@ant-design/icons';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import agent from '@/api/agent';
 import type { MissingGrade } from '@/types';
@@ -40,9 +40,12 @@ const GradingQueue: React.FC = () => {
   const normalizedQuery = query.trim().toLowerCase();
   const filtered = normalizedQuery
     ? missing.filter((m) => {
-        const user = m.grade.user;
-        const name = user ? `${user.first_name} ${user.last_name} ${user.email}`.toLowerCase() : '';
-        return name.includes(normalizedQuery);
+        const people = [m.grade.user, ...(m.grade.team_members ?? [])];
+        const names = people
+          .map((p) => (p ? `${p.first_name} ${p.last_name} ${p.email}` : ''))
+          .join(' ')
+          .toLowerCase();
+        return names.includes(normalizedQuery);
       })
     : missing;
 
@@ -57,6 +60,13 @@ const GradingQueue: React.FC = () => {
               {record.grade.user.first_name} {record.grade.user.last_name}
             </span>
             <span style={{ opacity: 0.65, fontSize: 12 }}>{record.grade.user.email}</span>
+            {record.grade.team_members && record.grade.team_members.length > 0 && (
+              <Tag icon={<TeamOutlined />} style={{ marginTop: 4 }}>
+                {t('team.teamOf', {
+                  names: record.grade.team_members.map((m) => `${m.first_name} ${m.last_name}`).join(', '),
+                })}
+              </Tag>
+            )}
           </Space>
         ) : (
           `#${record.grade.submission_id}`

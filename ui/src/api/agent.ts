@@ -28,6 +28,7 @@ import type {
   TaskPoints,
   GradeOverview,
   TaskRatingResponse,
+  Team,
   PaginationParams,
   FilterParams,
 } from '@/types';
@@ -344,6 +345,37 @@ const Exams = {
     apiClient.delete<void>(`/courses/${courseId}/exams/${examId}/enrollments`),
 };
 
+// Fixed teams within a course (team.go). Students create a team, share its
+// join code and join it; course admins can manage every team.
+const Teams = {
+  // Tutors and admins only.
+  getAll: (courseId: number) =>
+    apiClient.get<Team[]>(`/courses/${courseId}/teams`),
+
+  // 404 when the caller is not in a team.
+  getOwn: (courseId: number) =>
+    apiClient.get<Team>(`/courses/${courseId}/teams/own`),
+
+  // Students create their own team; admins pass the members.
+  create: (courseId: number, userIds?: number[]) =>
+    apiClient.post<Team>(`/courses/${courseId}/teams`, userIds ? { user_ids: userIds } : {}),
+
+  join: (courseId: number, joinCode: string) =>
+    apiClient.post<Team>(`/courses/${courseId}/teams/join`, { join_code: joinCode }),
+
+  leave: (courseId: number) =>
+    apiClient.delete<void>(`/courses/${courseId}/teams/own`),
+
+  delete: (courseId: number, teamId: number) =>
+    apiClient.delete<void>(`/courses/${courseId}/teams/${teamId}`),
+
+  addMember: (courseId: number, teamId: number, userId: number) =>
+    apiClient.post<Team>(`/courses/${courseId}/teams/${teamId}/members`, { user_id: userId }),
+
+  removeMember: (courseId: number, teamId: number, userId: number) =>
+    apiClient.delete<void>(`/courses/${courseId}/teams/${teamId}/members/${userId}`),
+};
+
 const Terms = {
   get: () => apiClient.get<string>('/privacy_statement'),
 };
@@ -360,6 +392,7 @@ const agent = {
   Grades,
   Submissions,
   Exams,
+  Teams,
   Terms,
   setToken: () => apiClient.setToken(),
   clearToken: () => apiClient.clearToken(),

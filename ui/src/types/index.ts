@@ -57,6 +57,24 @@ export interface Course {
   begins_at: string;
   ends_at: string;
   required_percentage: number;
+  // Largest allowed team; 1 means individual work (course_responses.go).
+  max_team_size: number;
+}
+
+// Teams (team_responses.go). Members of a team share one submission per task.
+export interface TeamMember {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+}
+
+export interface Team {
+  id: number;
+  join_code: string;
+  // A locked team has handed in solutions; only course admins can change it.
+  locked: boolean;
+  members: TeamMember[];
 }
 
 export interface CourseRole {
@@ -142,6 +160,9 @@ export interface Grade {
     last_name: string;
     email: string;
   };
+  // Set when the graded submission belongs to a team.
+  team_id?: number | null;
+  team_members?: TeamMember[];
 }
 
 // `GET /courses/{id}/grades/missing` returns, for the requesting tutor, every
@@ -162,6 +183,7 @@ export interface Submission {
   task_id: number;
   file_url: string;
   created_at: string;
+  team_id?: number | null;
 }
 
 export interface TaskRatingResponse {

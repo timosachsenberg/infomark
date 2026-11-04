@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/go-chi/render"
+	null "github.com/guregu/null/v6"
 	"github.com/infomark-org/infomark/api/helper"
 	"github.com/infomark-org/infomark/auth/authorize"
 	"github.com/infomark-org/infomark/configuration"
@@ -55,6 +56,9 @@ type GradeResponse struct {
 		LastName  string `json:"last_name" example:"Mustermensch"`
 		Email     string `json:"email" example:"test@unit-tuebingen.de"`
 	} `json:"user"`
+	// TeamID and TeamMembers are set when the submission belongs to a team.
+	TeamID      null.Int             `json:"team_id" example:"3"`
+	TeamMembers []TeamMemberResponse `json:"team_members" example:""`
 }
 
 // Render post-processes a GradeResponse.
@@ -101,6 +105,8 @@ func newGradeResponse(p *model.Grade, courseID int64) *GradeResponse {
 		User:                  user,
 		SubmissionID:          p.SubmissionID,
 		FileURL:               fileURL,
+		TeamID:                p.TeamID,
+		TeamMembers:           newTeamMemberResponses(p.TeamMembers),
 	}
 }
 
@@ -137,6 +143,8 @@ type MissingGradeResponse struct {
 			LastName  string `json:"last_name" example:"Mustermensch"`
 			Email     string `json:"email" example:"test@unit-tuebingen.de"`
 		} `json:"user"`
+		TeamID      null.Int             `json:"team_id" example:"3"`
+		TeamMembers []TeamMemberResponse `json:"team_members" example:""`
 	} `json:"grade"`
 	CourseID int64 `json:"course_id" example:"1"`
 	SheetID  int64 `json:"sheet_id" example:"10"`
@@ -187,6 +195,8 @@ func newMissingGradeResponse(p *model.MissingGrade) *MissingGradeResponse {
 			LastName  string `json:"last_name" example:"Mustermensch"`
 			Email     string `json:"email" example:"test@unit-tuebingen.de"`
 		} `json:"user"`
+		TeamID      null.Int             `json:"team_id" example:"3"`
+		TeamMembers []TeamMemberResponse `json:"team_members" example:""`
 	}{
 		ID:                    p.ID,
 		UpdatedAt:             p.UpdatedAt,
@@ -202,6 +212,8 @@ func newMissingGradeResponse(p *model.MissingGrade) *MissingGradeResponse {
 		User:                  user,
 		SubmissionID:          p.SubmissionID,
 		FileURL:               fileURL,
+		TeamID:                p.TeamID,
+		TeamMembers:           newTeamMemberResponses(p.TeamMembers),
 	}
 
 	r := &MissingGradeResponse{

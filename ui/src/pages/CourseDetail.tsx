@@ -49,6 +49,7 @@ import { useTranslation } from 'react-i18next';
 import { ExamsPanel } from '@/components/course/ExamsPanel';
 import { GroupsPanel } from '@/components/course/GroupsPanel';
 import { EnrollmentsPanel } from '@/components/course/EnrollmentsPanel';
+import { TeamsPanel } from '@/components/course/TeamsPanel';
 
 const ROLE_TUTOR = 1;
 const ROLE_ADMIN = 2;
@@ -358,6 +359,26 @@ const CourseDetail: React.FC = () => {
     ),
   };
 
+  // Only courses with teams (max_team_size > 1) get the teams tab.
+  const usesTeams = (course.max_team_size ?? 1) > 1;
+  const teamsTab = {
+    key: 'teams',
+    label: (
+      <span>
+        <UsergroupAddOutlined /> {t('course.teams')}
+      </span>
+    ),
+    children: (
+      <TeamsPanel
+        courseId={cId}
+        maxTeamSize={course.max_team_size}
+        isStudent={isStudent}
+        isTutor={isTutor || isAdmin}
+        canManage={isAdmin}
+      />
+    ),
+  };
+
   const examsTab = {
     key: 'exams',
     label: (
@@ -471,6 +492,7 @@ const CourseDetail: React.FC = () => {
     sheetsTab,
     materialsTab,
     groupsTab,
+    ...(usesTeams && (isStudent || isTutor || isAdmin) ? [teamsTab] : []),
     examsTab,
     ...(isStudent ? [gradesTab] : []),
     ...(isTutor ? [enrollmentsTab, pointsMatrixTab] : []),
@@ -517,6 +539,9 @@ const CourseDetail: React.FC = () => {
             <Descriptions.Item label={t('course.startDate')}>{dayjs(course.begins_at).format('MMM D, YYYY')}</Descriptions.Item>
             <Descriptions.Item label={t('course.endDate')}>{dayjs(course.ends_at).format('MMM D, YYYY')}</Descriptions.Item>
             <Descriptions.Item label={t('course.requiredPercentage')}>{course.required_percentage}%</Descriptions.Item>
+            <Descriptions.Item label={t('course.teams')}>
+              {usesTeams ? t('course.teamSize', { count: course.max_team_size }) : t('course.individualWork')}
+            </Descriptions.Item>
           </Descriptions>
           {isEnrolled && (
             <Tooltip title={`${achievedPoints} / ${requiredPoints} / ${achievablePoints}`}>
