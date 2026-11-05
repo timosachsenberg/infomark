@@ -21,6 +21,8 @@ package model
 
 import (
 	"time"
+
+	null "github.com/guregu/null/v6"
 )
 
 // -- 0: pending, 1: running, 2: finished
@@ -47,6 +49,9 @@ type Grade struct {
 	UserFirstName         string `db:"user_first_name,readonly"`
 	UserLastName          string `db:"user_last_name,readonly"`
 	UserEmail             string `db:"user_email,readonly"`
+	// TeamID and TeamMembers are set when the graded submission belongs to a team.
+	TeamID      null.Int       `db:"team_id,readonly"`
+	TeamMembers TeamMemberList `db:"team_members,readonly"`
 }
 
 // MissingGrade is a database view containing all grades which are finished

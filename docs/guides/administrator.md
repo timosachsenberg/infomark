@@ -264,6 +264,36 @@ Executing this command assigns each student to a group. Once students are
 assigned to an exercise group, they can no longer change their preference.
 However, any course admin can change the assignment manually.
 
+## Teams
+
+Students can hand in their solutions in fixed teams, for example pairs. Set
+the *maximum team size* when creating or editing a course. The default of 1
+means individual work; with 2 or more, the course page gets a *Teams* tab.
+
+- Students form teams themselves: one student creates a team and shares its
+  join code, and classmates join with that code. A team stays together for
+  the whole course.
+- Team members share one submission per task. Any member can upload, and an
+  upload replaces the team's submission. The tests run once, a tutor grades
+  the submission once, and the points and feedback count for every member.
+- As soon as a team has handed in a solution, it is locked: students can no
+  longer join or leave it. Course admins can still create teams for
+  students, add or remove members, and delete teams on the *Teams* tab.
+- Solutions a student handed in alone before joining a team stay with that
+  student. If the student's team hands in the same task, the team
+  submission counts instead, and an upload by that student turns the earlier
+  submission into the team's submission.
+- If an admin removes a member, the student keeps the points only for team
+  submissions they uploaded themselves. Deleting a team returns each of its
+  submissions to the student who uploaded it.
+- The maximum team size cannot be set below the size of the largest existing
+  team.
+
+Tutors see a team submission once, listing all team members, in the grading
+lists of every exercise group with a member of the team. In the collected
+zip files of an exercise group, a team submission is named
+`team<id>-<last names>.zip`.
+
 ## Backup and restore
 
 The console features commands to create and restore snapshots of the database.

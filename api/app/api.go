@@ -161,6 +161,10 @@ type MaterialStore interface {
 type SubmissionStore interface {
 	Get(submissionID int64) (*model.Submission, error)
 	GetByUserAndTask(userID int64, taskID int64) (*model.Submission, error)
+	GetUploadedByUserAndTask(userID int64, taskID int64) (*model.Submission, error)
+	GetByTeamAndTask(teamID int64, taskID int64) (*model.Submission, error)
+	SetTeam(submissionID int64, teamID int64) error
+	IsParticipant(submissionID int64, userID int64) (bool, error)
 	Create(p *model.Submission) (*model.Submission, error)
 	GetFiltered(filterCourseID, filterGroupID, filterUserID, filterSheetID, filterTaskID int64) ([]model.Submission, error)
 }
@@ -194,6 +198,23 @@ type GradeStore interface {
 	GetOverviewGrades(courseID int64, groupID int64) ([]model.OverviewGrade, error)
 }
 
+// TeamStore defines team related database queries
+type TeamStore interface {
+	Get(teamID int64) (*model.Team, error)
+	GetByJoinCode(courseID int64, joinCode string) (*model.Team, error)
+	GetOfUserInCourse(userID int64, courseID int64) (*model.Team, error)
+	TeamsOfCourse(courseID int64) ([]model.Team, error)
+	Members(teamID int64) ([]model.TeamMember, error)
+	MembersInCourse(courseID int64) ([]model.TeamMember, error)
+	TeamIDsWithSubmissions(courseID int64) ([]int64, error)
+	HasSubmissions(teamID int64) (bool, error)
+	LargestTeamSize(courseID int64) (int, error)
+	Create(p *model.Team) (*model.Team, error)
+	Delete(teamID int64) error
+	AddMember(teamID int64, userID int64, maxSize int) error
+	RemoveMember(teamID int64, userID int64) error
+}
+
 // API provides application resources and handlers.
 type API struct {
 	User       *UserResource
@@ -209,6 +230,7 @@ type API struct {
 	Grade      *GradeResource
 	Common     *CommonResource
 	Exam       *ExamResource
+	Team       *TeamResource
 }
 
 // Stores is the collection of stores. We use this struct to express a kind of
@@ -223,6 +245,7 @@ type Stores struct {
 	Material   MaterialStore
 	Grade      GradeStore
 	Exam       ExamStore
+	Team       TeamStore
 }
 
 // NewStores build all stores and connect them to a database.
@@ -237,6 +260,7 @@ func NewStores(db *sqlx.DB) *Stores {
 		Material:   database.NewMaterialStore(db),
 		Grade:      database.NewGradeStore(db),
 		Exam:       database.NewExamStore(db),
+		Team:       database.NewTeamStore(db),
 	}
 }
 
@@ -258,6 +282,7 @@ func NewAPI(db *sqlx.DB, tokenAuth *authenticate.TokenAuth, sessionAuth *scs.Man
 		Grade:      NewGradeResource(stores),
 		Common:     NewCommonResource(stores),
 		Exam:       NewExamResource(stores),
+		Team:       NewTeamResource(stores),
 	}
 	return api, nil
 }

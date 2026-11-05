@@ -127,11 +127,11 @@ SELECT
   t.max_points
 FROM
   grades g
-INNER JOIN submissions sub ON g.submission_id = sub.id
-INNER JOIN tasks t ON sub.task_id = t.id
+INNER JOIN effective_submissions es ON g.submission_id = es.submission_id
+INNER JOIN tasks t ON es.task_id = t.id
 INNER JOIN task_sheet ts ON ts.task_id = t.id
 WHERE
-  sub.user_id = $1
+  es.user_id = $1
 AND
   ts.sheet_id = $2
 ORDER BY

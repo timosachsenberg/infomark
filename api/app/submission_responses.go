@@ -24,6 +24,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/render"
+	null "github.com/guregu/null/v6"
 	"github.com/infomark-org/infomark/configuration"
 	"github.com/infomark-org/infomark/model"
 )
@@ -36,6 +37,8 @@ type SubmissionResponse struct {
 	UserID  int64  `json:"user_id" example:"357"`
 	TaskID  int64  `json:"task_id" example:"12"`
 	FileURL string `json:"file_url" example:"/api/v1/submissions/61/file"`
+	// TeamID is set when the submission belongs to a team.
+	TeamID null.Int `json:"team_id" example:"3"`
 }
 
 // newSubmissionResponse creates a response from a Submission model.
@@ -52,6 +55,7 @@ func newSubmissionResponse(p *model.Submission, courseID int64) *SubmissionRespo
 		UserID:  p.UserID,
 		TaskID:  p.TaskID,
 		FileURL: fileURL,
+		TeamID:  p.TeamID,
 	}
 
 	return sr

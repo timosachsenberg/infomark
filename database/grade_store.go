@@ -25,6 +25,22 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
+// teamColumns selects the team of a submission `s` and its members as a JSON
+// array (empty for individual submissions).
+const teamColumns = `  s.team_id,
+  COALESCE((
+    SELECT
+      json_agg(json_build_object(
+        'id', tu.id,
+        'first_name', tu.first_name,
+        'last_name', tu.last_name,
+        'email', tu.email
+      ) ORDER BY tu.last_name, tu.first_name)
+    FROM user_team tm
+    INNER JOIN users tu ON tu.id = tm.user_id
+    WHERE tm.team_id = s.team_id
+  ), '[]'::json) AS team_members`
+
 type GradeStore struct {
 	db *sqlx.DB
 }
@@ -49,7 +65,8 @@ SELECT
   s.user_id,
   u.last_name user_last_name,
   u.first_name user_first_name,
-  u.email user_email
+  u.email user_email,
+`+teamColumns+`
 FROM
   grades g
 INNER JOIN submissions s ON g.submission_id = s.id
@@ -105,7 +122,7 @@ func (s *GradeStore) GetOverviewGrades(courseID int64, groupID int64) ([]model.O
 	err := s.db.Select(&p, `
 SELECT
   sum(g.acquired_points) points,
-  s.user_id,
+  es.user_id,
   ts.sheet_id,
   sh.name,
   u.first_name user_first_name,
@@ -114,16 +131,16 @@ SELECT
   u.email user_email
 FROM
   grades g
-INNER JOIN submissions s ON g.submission_id = s.id
-INNER JOIN tasks t ON s.task_id = t.id
+INNER JOIN effective_submissions es ON g.submission_id = es.submission_id
+INNER JOIN tasks t ON es.task_id = t.id
 INNER JOIn task_sheet ts ON t.id = ts.task_id
 INNER JOIn sheets sh ON ts.sheet_id = sh.id
 INNER JOIN sheet_course sc ON ts.sheet_id = sc.sheet_id
 INNEr JOIN courses c ON sc.course_id = c.id
-INNER JOIN user_course uc ON s.user_id = uc.user_id
-INNER JOIN user_group ug ON  s.user_id = ug.user_id
+INNER JOIN user_course uc ON es.user_id = uc.user_id
+INNER JOIN user_group ug ON  es.user_id = ug.user_id
 INNER JOIN groups gs ON  ug.group_id = gs.id
-INNER JOIN users u ON  s.user_id = u.id
+INNER JOIN users u ON  es.user_id = u.id
 WHERE
   c.ID = $1
 AND
@@ -135,9 +152,9 @@ AND
 AND
   ($2 = 0 OR gs.id = $2)
 GROUP BY
-  s.user_id, ts.sheet_id, sh.name, u.first_name, u.last_name, u.student_number, u.email
+  es.user_id, ts.sheet_id, sh.name, u.first_name, u.last_name, u.student_number, u.email
 ORDER BY
-  s.user_id
+  es.user_id
 `, courseID, groupID)
 	return p, err
 }
@@ -155,20 +172,28 @@ SELECT
   s.user_id,
   u.last_name user_last_name,
   u.first_name user_first_name,
-  u.email user_email
+  u.email user_email,
+`+teamColumns+`
 FROM
   grades g
 INNER JOIN submissions s ON s.id = g.submission_id
 INNER JOIN task_sheet ts ON ts.task_id = s.task_id
 INNER JOIN sheet_course sg ON sg.sheet_id = ts.sheet_id
 INNER JOIN users u ON s.user_id = u.id
-INNER JOIN user_group ug ON ug.user_id = u.id
 WHERE
   g.feedback like '' and g.tutor_id = $1
 AND
   sg.course_id = $2
 AND
-  ($3 = 0 OR ug.group_id = $3)
+  EXISTS (
+    SELECT 1
+    FROM submission_participants sp
+    INNER JOIN user_group ug ON ug.user_id = sp.user_id
+    WHERE sp.submission_id = s.id
+    AND ($3 = 0 OR ug.group_id = $3)
+  )
+AND
+  `+CountedSubmission("s")+`
   `, tutorID, courseID, groupID)
 	return p, err
 }
@@ -199,24 +224,31 @@ SELECT
   g.*, s.user_id,
   u.last_name user_last_name,
   u.first_name user_first_name,
-  u.email user_email
+  u.email user_email,
+`+teamColumns+`
 FROM
   grades g
 INNER JOIN submissions s ON s.id = g.submission_id
 INNER JOIN task_sheet ts ON ts.task_id = s.task_id
 INNER JOIN sheet_course sc ON sc.sheet_id = ts.sheet_id
-INNER JOIN user_group ug ON ug.user_id = s.user_id
 INNER JOIN users u ON s.user_id = u.id
 WHERE
-  course_id = $1
+  sc.course_id = $1
 AND
-  ug.group_id = $4
+  EXISTS (
+    SELECT 1
+    FROM submission_participants sp
+    INNER JOIN user_group ug ON ug.user_id = sp.user_id
+    WHERE sp.submission_id = s.id
+    AND ug.group_id = $4
+    AND ($5 = 0 OR sp.user_id = $5)
+  )
+AND
+  `+CountedSubmission("s")+`
 AND
   ($2 = 0 OR ts.sheet_id = $2)
 AND
   ($3 = 0 OR s.task_id = $3)
-AND
-  ($5 = 0 OR ug.user_id = $5)
 AND
   ($6 = 0 OR tutor_id = $6)
 AND

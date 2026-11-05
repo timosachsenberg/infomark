@@ -21,13 +21,16 @@ package app
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	null "github.com/guregu/null/v6"
 	"github.com/infomark-org/infomark/api/helper"
 	"github.com/infomark-org/infomark/api/shared"
 	"github.com/infomark-org/infomark/auth/authenticate"
@@ -66,20 +69,12 @@ func (rs *SubmissionResource) GetFileHandler(w http.ResponseWriter, r *http.Requ
 	task := r.Context().Value(symbol.CtxKeyTask).(*model.Task)
 	// submission := r.Context().Value(symbol.CtxKeySubmission).(*model.Submission)
 	accessClaims := r.Context().Value(symbol.CtxKeyAccessClaims).(*authenticate.AccessClaims)
-	givenRole := r.Context().Value(symbol.CtxKeyCourseRole).(authorize.CourseRole)
 
+	// this is the submission of the request identity or of its team
 	submission, err := rs.Stores.Submission.GetByUserAndTask(accessClaims.LoginID, task.ID)
 	if err != nil {
 		render.Render(w, r, ErrNotFound)
 		return
-	}
-
-	// students can only access their own files
-	if submission.UserID != accessClaims.LoginID {
-		if givenRole == authorize.STUDENT {
-			render.Render(w, r, ErrUnauthorized)
-			return
-		}
 	}
 
 	hnd := helper.NewSubmissionFileHandle(submission.ID)
@@ -239,9 +234,14 @@ func (rs *SubmissionResource) GetFileByIDHandler(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// students can only access their own files
-	if submission.UserID != accessClaims.LoginID {
-		if givenRole == authorize.STUDENT {
+	// students can only access their own files and those of their team
+	if givenRole == authorize.STUDENT {
+		participant, err := rs.Stores.Submission.IsParticipant(submission.ID, accessClaims.LoginID)
+		if err != nil {
+			render.Render(w, r, ErrInternalServerErrorWithDetails(err))
+			return
+		}
+		if !participant {
 			render.Render(w, r, ErrUnauthorized)
 			return
 		}
@@ -312,16 +312,18 @@ func (rs *SubmissionResource) UploadFileHandler(w http.ResponseWriter, r *http.R
 		defaultPrivateTestLog = "no unit tests for this task are available"
 	}
 
-	// create submission if not exists
-	submission, err := rs.Stores.Submission.GetByUserAndTask(usedUserID, task.ID)
+	// find the submission this upload belongs to (the team's one for team members)
+	submission, created, err := rs.submissionForUpload(course.ID, task.ID, usedUserID)
 	if err != nil {
-		// no such submission
-		submission, err = rs.Stores.Submission.Create(&model.Submission{UserID: usedUserID, TaskID: task.ID})
-		if err != nil {
-			render.Render(w, r, ErrInternalServerErrorWithDetails(err))
+		if errors.Is(err, errSubmissionOfFormerTeam) {
+			render.Render(w, r, ErrBadRequestWithDetails(err))
 			return
 		}
+		render.Render(w, r, ErrInternalServerErrorWithDetails(err))
+		return
+	}
 
+	if created {
 		// create also empty grade, which will be filled in later
 		grade = &model.Grade{
 			PublicExecutionState:  0,
@@ -448,6 +450,63 @@ func (rs *SubmissionResource) UploadFileHandler(w http.ResponseWriter, r *http.R
 	totalSubmissionCounterVec.WithLabelValues(fmt.Sprintf("%d", task.ID)).Inc()
 
 	render.Status(r, http.StatusOK)
+}
+
+var errSubmissionOfFormerTeam = errors.New("your submission for this task belongs to a team you are no longer part of; ask a course admin")
+
+// submissionForUpload returns the submission an upload of a student for a
+// task is stored in, creating it if needed. Members of a team share one
+// submission per task: an existing team submission is reused, otherwise the
+// student's own submission moves into the team.
+func (rs *SubmissionResource) submissionForUpload(courseID, taskID, userID int64) (submission *model.Submission, created bool, err error) {
+	team, err := rs.Stores.Team.GetOfUserInCourse(userID, courseID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, false, err
+	}
+	inTeam := err == nil
+
+	if inTeam {
+		submission, err = rs.Stores.Submission.GetByTeamAndTask(team.ID, taskID)
+		if err == nil {
+			return submission, false, nil
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, false, err
+		}
+	}
+
+	submission, err = rs.Stores.Submission.GetUploadedByUserAndTask(userID, taskID)
+	switch {
+	case err == nil:
+		if submission.TeamID.Valid && (!inTeam || submission.TeamID.Int64 != team.ID) {
+			return nil, false, errSubmissionOfFormerTeam
+		}
+		if inTeam && !submission.TeamID.Valid {
+			if err := rs.Stores.Submission.SetTeam(submission.ID, team.ID); err != nil {
+				return nil, false, err
+			}
+			submission.TeamID = null.IntFrom(team.ID)
+		}
+		return submission, false, nil
+	case !errors.Is(err, sql.ErrNoRows):
+		return nil, false, err
+	}
+
+	newSubmission := &model.Submission{UserID: userID, TaskID: taskID}
+	if inTeam {
+		newSubmission.TeamID = null.IntFrom(team.ID)
+	}
+	submission, err = rs.Stores.Submission.Create(newSubmission)
+	if err != nil {
+		if inTeam {
+			// a team mate might have created the team submission just now
+			if existing, getErr := rs.Stores.Submission.GetByTeamAndTask(team.ID, taskID); getErr == nil {
+				return existing, false, nil
+			}
+		}
+		return nil, false, err
+	}
+	return submission, true, nil
 }
 
 // IndexHandler is public endpoint for
